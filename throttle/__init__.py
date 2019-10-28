@@ -1,3 +1,4 @@
+import abc
 import time
 import functools
 import operator
@@ -5,10 +6,16 @@ import operator
 from . import schedules
 
 
-__all__ = ('Base', 'Valve', 'Sling', 'wrap')
+__all__ = ('Valve', 'Static', 'wrap')
 
 
-class Base:
+class Base(abc.ABC):
+
+    """An abstract base for all classes implementing frequency check mechanisms.
+
+    :param list bucket:
+        Used to track state.
+    """
 
     __slots__ = ('_bucket',)
 
@@ -20,7 +27,11 @@ class Base:
     def bucket(self):
 
         """
-        Get the bucket.
+        Storage tracking values.
+
+        .. warning::
+            This object is solely internally managed. Changes to it may lead
+            to unexpected behavior.
         """
 
         return self._bucket
@@ -29,6 +40,9 @@ class Base:
 
         """
         Get the number of values adhering to the key.
+
+        :param func key:
+            Only count items abiding to this.
         """
 
         values = self._bucket
@@ -38,18 +52,37 @@ class Base:
     def left(self, limit, **kwargs):
 
         """
-        Get the number of room left according to the limit.
+        Get the number of space left according to the limit.
+
+        :param int limit:
+            Current count will be deducted from this.
+        :param kwargs:
+            Passed on to :func:`count`
         """
 
         return limit - self.count(**kwargs)
 
+    def _setup(self):
+
+        pass
+
+    @abc.abstractmethod
     def _observe(self, value, delay):
 
         """
         Track value, and discard it after delay.
+
+        :param any value:
+            Change according to your ``key`` needs.
+        :param int delay:
+            Wait for this many seconds before discarding.
         """
 
         raise NotImplementedError()
+
+    def _cleanup(self):
+
+        pass
 
     def check(self,
               delay,
@@ -61,9 +94,30 @@ class Base:
               rate = 1):
 
         """
-        Check if the valve is open. If it is, track value.
-        Returns the number of spaces left before adding value.
+        Check if the valve is open and track the value accordingly.
+
+        :param float delay:
+            Wait for this many seconds before discarding.
+        :param int limit:
+            Only track the value if the current size is less than this.
+        :param any value:
+            Something to track, adapt it to your :paramref:`~check.key` needs.
+        :param func key:
+            Only account for values adhering to this.
+        :param bool bypass:
+            Track the value regardless of whether it exceeds limit.
+        :param int excess:
+            Amount of extra values allowed for tracking.
+        :param float rate:
+            Multiplied against the delay after any modifications to it.
+
+        .. note::
+            Using ``excess`` will not affect the result, but will reduce the \
+            delay after which extra values are discarded. The formula for the \
+            rate-affecting delay is ``(left + excess) / limit``.
         """
+
+        self._setup()
 
         left = self.left(limit, key = key)
 
@@ -77,6 +131,8 @@ class Base:
 
             self._observe(value, delay)
 
+        self._cleanup()
+
         left = max(0, left)
 
         return left
@@ -85,7 +141,11 @@ class Base:
 class Valve(Base):
 
     """
-    You can only have `limit` of `key`'d values every `rate` seconds.
+    Can only have :paramref:`~Base.check.limit` of :paramref:`~Base.check.key`'d
+    values every :paramref:`~Base.check.rate` seconds.
+
+    :param asyncio.AbstractEventLoop loop:
+        Signal the use of :py:mod:`asyncio` instead of :py:mod:`threading`.
     """
 
     __slots__  = ('_schedule',)
@@ -100,10 +160,6 @@ class Valve(Base):
 
     def _observe(self, value, delay):
 
-        """
-        Track value, wait for delay and discard it.
-        """
-
         self._bucket.append(value)
 
         manage = functools.partial(self._bucket.remove, value)
@@ -114,7 +170,14 @@ class Valve(Base):
 class Static(Base):
 
     """
-    Works like `Valve`, except it does not use any asynchronous functions.
+    Works like :class:`.Valve`, except it doesn't use any concurrent utilities.
+
+    :param func time:
+        Used for calculating expiry timestamps.
+
+    .. note::
+        Insourcing time calculations results in :func:`check` being almost
+        **3x** slower.
     """
 
     __slots__ = ('_memory', '_time', '_state')
@@ -127,11 +190,21 @@ class Static(Base):
 
         self._time = time
 
-    def _clean(self):
+    def _setup(self):
 
-        """
-        Discard all expired values.
-        """
+        self._state = self._time()
+
+    def _observe(self, value, delay):
+
+        expiry = self._state + delay
+
+        self._bucket.append(value)
+
+        self._memory.append(expiry)
+
+        return expiry
+
+    def _cleanup(self):
 
         index = 0
 
@@ -155,44 +228,39 @@ class Static(Base):
 
             del self._bucket[index]
 
-    def _observe(self, value, delay):
 
-        """
-        Clean all expired values.
-        Track value and it's expected expiry time.
-        """
+def wrap(*args,
+         strict = False,
+         fetch = None,
+         valve = None,
+         fail = None,
+         **kwargs):
 
-        expiry = self._state + delay
+    """
+    Decorator for controlling execution.
 
-        self._bucket.append(value)
+    :param bool strict:
+        Account for arguments when deciding whether to throttle. Similar to
+        :func:`functools.lru_cache` returning the same result for the same
+        arguments.
+    :param func fetch:
+        Takes the arbitrary amount of positional and keyword arguments passed
+        and returns a single value used for state tracking.
+    :param Base valve:
+        Used for deciding whether to prevent execution.
+    :param any fail:
+        Will be returned instead of the actual functon result if throtted.
 
-        self._memory.append(expiry)
-
-        return expiry
-
-    def check(self, *args, full = True, **kwargs):
-
-        self._state = self._time()
-
-        left = super().check(*args, **kwargs)
-
-        self._clean()
-
-        return left
-
-
-fail = object()
-
-
-def wrap(*args, strict = False, fetch = None, valve = None, **kwargs):
+    Additional arguments will be used as defaults for :func:`~Base.check`.
+    """
 
     if not valve:
 
         valve = Static()
 
-    check = functools.partial(valve.check, *args, **kwargs)
-
     def decorator(function):
+
+        check = functools.partial(valve.check, *args, **kwargs)
 
         nonlocal fetch
 

@@ -1,12 +1,12 @@
 import setuptools
 
-with open('README.md') as file:
+with open('README.rst') as file:
 
     readme = file.read()
 
 name = 'throttle'
 
-version = '0.2.0'
+version = '0.2.1'
 
 author = 'Exahilosys'
 
@@ -21,5 +21,10 @@ setuptools.setup(
     license = 'MIT',
     description = 'Frequency tracking and throttling utilities.',
     long_description = readme,
-    long_description_content_type = 'text/markdown'
+    extras_require = {
+        'docs': [
+            'sphinx',
+            'sphinx-paramlinks'
+        ]
+    }
 )
