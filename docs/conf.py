@@ -25,7 +25,6 @@ master_doc = 'index'
 # The full version, including alpha/beta/rc tags
 version = __import__('pkg_resources').require(project)[0].version
 
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -37,18 +36,18 @@ extensions = [
     'sphinx_paramlinks'
 ]
 
+# autodoc
 
 autodoc_member_order = 'bysource'
 
+# intersphinx
 
 intersphinx_mapping = {
   'py': ('https://docs.python.org/3', None),
 }
 
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
-
 
 rst_prolog = """
 .. currentmodule:: throttle
@@ -58,7 +57,6 @@ rst_prolog = """
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
-
 
 # -- Options for HTML output -------------------------------------------------
 
