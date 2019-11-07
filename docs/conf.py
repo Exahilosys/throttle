@@ -32,13 +32,14 @@ version = __import__('pkg_resources').require(project)[0].version
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.intersphinx',
-    'sphinx_paramlinks'
+    'sphinx.ext.intersphinx'
 ]
 
 # autodoc
 
 autodoc_member_order = 'bysource'
+
+add_module_names = False
 
 # intersphinx
 
@@ -69,3 +70,30 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+# Finalize
+
+def setup(app):
+
+    # Monkey Patching
+
+    import inspect
+    import sphinx.ext.autodoc
+
+    old = sphinx.ext.autodoc.ClassDocumenter.add_line
+
+    def new(self, line, source, *lineno):
+
+        name = inspect.stack()[1].function
+
+        if name == 'add_directive_header':
+
+            if ':class:`object`' in line:
+
+                return
+
+            line = line.replace(':class:`' + project, ':class:`~')
+
+        return old(self, line, source, *lineno)
+
+    sphinx.ext.autodoc.ClassDocumenter.add_line = new

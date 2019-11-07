@@ -23,8 +23,7 @@ setuptools.setup(
     long_description = readme,
     extras_require = {
         'docs': [
-            'sphinx',
-            'sphinx-paramlinks'
+            'sphinx'
         ]
     }
 )

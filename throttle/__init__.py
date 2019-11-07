@@ -101,7 +101,7 @@ class Base(abc.ABC):
         :param int limit:
             Only track the value if the current size is less than this.
         :param any value:
-            Something to track, adapt it to your :paramref:`~check.key` needs.
+            Something to track, adapt it to your ``key`` needs.
         :param func key:
             Only account for values adhering to this.
         :param bool bypass:
@@ -141,8 +141,7 @@ class Base(abc.ABC):
 class Valve(Base):
 
     """
-    Can only have :paramref:`~Base.check.limit` of :paramref:`~Base.check.key`'d
-    values every :paramref:`~Base.check.rate` seconds.
+    Can only have ``limit`` of ``key``'d values every ``rate`` seconds.
 
     :param asyncio.AbstractEventLoop loop:
         Signal the use of :py:mod:`asyncio` instead of :py:mod:`threading`.
@@ -176,7 +175,7 @@ class Static(Base):
         Used for calculating expiry timestamps.
 
     .. note::
-        Insourcing time calculations results in :func:`check` being almost
+        Insourcing time calculations results in :meth:`.check` being almost
         **3x** slower.
     """
 
