@@ -50,10 +50,6 @@ intersphinx_mapping = {
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
-rst_prolog = """
-.. currentmodule:: throttle
-"""
-
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
@@ -80,9 +76,9 @@ def setup(app):
     import inspect
     import sphinx.ext.autodoc
 
-    old = sphinx.ext.autodoc.ClassDocumenter.add_line
+    old_add_line = sphinx.ext.autodoc.ClassDocumenter.add_line
 
-    def new(self, line, source, *lineno):
+    def new_add_line(self, line, source, *lineno):
 
         name = inspect.stack()[1].function
 
@@ -92,8 +88,10 @@ def setup(app):
 
                 return
 
-            line = line.replace(':class:`' + project, ':class:`~')
+            if 'Bases:' in line:
 
-        return old(self, line, source, *lineno)
+                line = line.replace(':class:`', ':class:`~')
 
-    sphinx.ext.autodoc.ClassDocumenter.add_line = new
+        return old_add_line(self, line, source, *lineno)
+
+    sphinx.ext.autodoc.ClassDocumenter.add_line = new_add_line
