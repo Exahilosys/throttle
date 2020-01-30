@@ -6,7 +6,7 @@ import operator
 from . import schedules
 
 
-__all__ = ('Valve', 'Static', 'wrap')
+__all__ = ('Valve', 'Static', 'wrap', 'fail')
 
 
 class Base(abc.ABC):
@@ -175,7 +175,7 @@ class Static(Base):
         Used for calculating expiry timestamps.
 
     .. note::
-        Insourcing time calculations results in :meth:`.check` being almost
+        Insourcing time calculations results to :meth:`.check` being almost
         **3x** slower.
     """
 
@@ -228,12 +228,10 @@ class Static(Base):
             del self._bucket[index]
 
 
-def wrap(*args,
-         strict = False,
-         fetch = None,
-         valve = None,
-         fail = None,
-         **kwargs):
+fail = object()
+
+
+def wrap(*args, strict = False, apply = None, valve = None, **kwargs):
 
     """
     Decorator for controlling execution.
@@ -242,13 +240,11 @@ def wrap(*args,
         Account for arguments when deciding whether to throttle. Similar to
         :func:`functools.lru_cache` returning the same result for the same
         arguments.
-    :param func fetch:
+    :param func apply:
         Takes the arbitrary amount of positional and keyword arguments passed
         and returns a single value used for state tracking.
     :param Base valve:
         Used for deciding whether to prevent execution.
-    :param any fail:
-        Will be returned instead of the actual functon result if throtted.
 
     Additional arguments will be used as defaults for :func:`~Base.check`.
     """
@@ -261,13 +257,13 @@ def wrap(*args,
 
         check = functools.partial(valve.check, *args, **kwargs)
 
-        nonlocal fetch
+        nonlocal apply
 
         if strict:
 
-            if not fetch:
+            if not apply:
 
-                def fetch(*args, **kwargs):
+                def apply(*args, **kwargs):
 
                     items = kwargs.items()
 
@@ -277,7 +273,7 @@ def wrap(*args,
 
             def execute(*args, **kwargs):
 
-                value = fetch(*args, **kwargs)
+                value = apply(*args, **kwargs)
 
                 key = functools.partial(operator.eq, value)
 
@@ -287,11 +283,11 @@ def wrap(*args,
 
         else:
 
-            if fetch:
+            if apply:
 
                 def execute(*args, **kwargs):
 
-                    value = fetch()
+                    value = apply()
 
                     allow = check(value)
 
